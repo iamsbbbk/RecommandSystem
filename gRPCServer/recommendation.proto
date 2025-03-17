@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package recommendation;
+
+//  通用消息定义 (Messages)
+
+/// 1) 用户基础信息
+message UserBase {
+  int32 user_id = 1;
+  /// user_id: 全局唯一的用户标识
+
+  repeated string interest_tags = 2;
+  /// interest_tags: 用户兴趣关键词
+
+  string context = 3;
+  /// context: 此次会话的 ID
+}
+
+/// 2) 用户与题目交互信息
+message UserInteraction {
+  UserBase user_base = 1;
+  /// user_base: 包含 user_id, interest_tags, context。
+
+  string question_id = 2;
+  /// question_id: 所交互的题目ID
+
+  string timestamp = 3;
+  /// timestamp: 行为发生时间
+
+  float rating = 4;
+  /// rating: 用户对此题目的打分(0~5)
+
+  int32 views = 5;
+  /// views: 用户对同一题目浏览次数
+}
+
+/// 3) 批量上传交互时的请求
+message InteractionRequest {
+  repeated UserInteraction interactions = 1;
+}
+
+/// 4) 交互上报后的响应
+message InteractionResponse {
+  bool success = 1;
+  /// success: 是否成功处理
+
+  string message = 2;
+  /// message: 如果出错或提示说明，返回这里
+}
+
+/// 5) 请求推荐时的输入
+message RecommendRequest {
+  UserBase user_base = 1;
+
+  string question_id = 2;
+  /// question_id: 如果是会话型推荐, 说明用户最近浏览了哪道题
+
+  float rating = 3;
+  /// rating: 如果用户对 question_id 题打分, 也可一起提交, 有助后端
+
+  int32 views = 4;
+  /// views: 浏览次数
+
+  string timestamp = 5;
+  /// timestamp: 同上, 请求时间或行为发生时间
+
+  int32 top_n = 6;
+  /// top_n: 期望返回多少条推荐, 若客户端不传(=0)时后端可默认=5
+}
+
+/// 6) 推荐结果中每个题目的信息
+message QuestionInfo {
+  string question_id = 1;
+  /// question_id: 返回题目ID
+
+  repeated string tags = 2;
+  /// tags: 此题目的标签, 供前端显示或多样化
+
+  float rating = 3;
+  /// rating: 题目自身的 rating
+
+  int32 views = 4;
+  /// views: 题目的整体浏览量
+
+  float hot_score = 5;
+  /// hot_score: 后端计算的热门度(可用于前端区分热门题)
+}
+
+/// 7) 推荐响应
+message RecommendResponse {
+  repeated QuestionInfo results = 1;
+  /// results: 包含多个题目的列表, 由后端排序后返回
+}
+
+/// =========================
+///    gRPC 服务定义
+/// =========================
+service Recommender {
+  /// (A) 用户交互上报
+  rpc SendInteraction(InteractionRequest) returns (InteractionResponse);
+
+  /// (B) 请求推荐
+  rpc Recommend(RecommendRequest) returns (RecommendResponse);
+}
