@@ -7,7 +7,6 @@ from typing import List, Dict
 from models.collaborative_filter import CollaborativeFilterModel
 from models.diversity import diversity_rerank
 
-
 class RecommenderService:
     """
     在线推荐核心逻辑:
@@ -134,7 +133,7 @@ class RecommenderService:
             "B": {"tag": 0.3, "cf": 0.4, "hot": 0.2,  "rating": 0.05,"views":0.05},
         }
         if scheme not in schemes:
-            scheme = "A"
+            scheme = "B"
         w = schemes[scheme]
 
         tag_weights = profile.get("tag_weights", {})

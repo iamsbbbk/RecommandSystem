@@ -1,4 +1,4 @@
-# recommender.py
+# gRPCServer/recommender.py
 
 class RecommenderService:
     """

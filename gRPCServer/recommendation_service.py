@@ -1,5 +1,7 @@
-# recommendation_service.py
+# gRPCServer/recommendation_service.py
 
+import os
+import json
 import recommendation_pb2
 import recommendation_pb2_grpc
 
@@ -12,38 +14,52 @@ import numpy as np
 
 class RecommenderServicer(recommendation_pb2_grpc.RecommenderServicer):
     """
-    继承并实现 proto 中的 Recommender 服务
-    (SendInteraction + Recommend)
+    实现 proto 中定义的 Recommender 服务 (SendInteraction + Recommend)
     """
 
     def __init__(self):
-        # 1) 初始化UserProfileManager
+        # 1) 初始化 UserProfileManager
         self.profile_mgr = UserProfileManager()
-        # 2) 初始化 RecommenderService
+
+        # 2) 初始化 RecommenderService，并传入用户画像管理
         self.recommender_service = RecommenderService(self.profile_mgr)
-        # 3) 初始化 CF model
+
+        # 3) 初始化 CF 模型 (协同过滤)
         self.cf_model = CollaborativeFilterModel(sim_threshold=0.0)
-        #   这里先不fit任何数据, 等有数据或需要时再 fit
         self.recommender_service.load_cf_model(self.cf_model)
 
-        # 你可能还需要 question_db, hot_list 等
-        self.question_db = {}
-        # 也可以由外部传入, 或者此处直接设置
-        # self.recommender_service.load_question_db(...)
+        # 4) 从 JSON 文件加载题库数据（返回列表）
+        json_path = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "models",
+                                 "question_bank.json")
+        question_list = self.load_question_bank_from_json(json_path)
+        self.recommender_service.load_question_db(question_list)
 
         print("[RecommenderServicer] Initialized all components")
 
+    def load_question_bank_from_json(self, json_file):
+        if not os.path.exists(json_file):
+            print(f"[RecommenderServicer] JSON file {json_file} not found!")
+            return []
+        try:
+            with open(json_file, "r", encoding="utf-8") as f:
+                # 直接返回题库列表
+                question_list = json.load(f)
+            print(f"[RecommenderServicer] Loaded question bank from JSON with {len(question_list)} questions.")
+            return question_list
+        except Exception as e:
+            print(f"[RecommenderServicer] Error loading JSON: {e}")
+            return []
+
     def SendInteraction(self, request, context):
         """
-        gRPC方法: SendInteraction(InteractionRequest) -> InteractionResponse
-        负责处理用户上传的一批交互(UserInteraction)
+        gRPC 方法: SendInteraction(InteractionRequest) -> InteractionResponse
+        处理用户上传的一批交互数据
         """
         total = 0
         new_interactions = []
         for interaction in request.interactions:
             user_id = interaction.user_base.user_id
             if user_id not in self.profile_mgr.user_profiles:
-                # 若没有该用户, 初始化
                 self.profile_mgr.user_profiles[user_id] = {
                     "items": [],
                     "embedding": np.array([], dtype=np.float32),
@@ -51,25 +67,19 @@ class RecommenderServicer(recommendation_pb2_grpc.RecommenderServicer):
                     "done_questions": set(),
                     "recently_recommended": set()
                 }
-
             qid = interaction.question_id
             rating = interaction.rating
             views = interaction.views
             timestamp = interaction.timestamp
-            # interest_tags = list(interaction.user_base.interest_tags)
-            # context_str = interaction.user_base.context
 
-            # 1) update user_profile "done_questions"
+            # 更新用户画像中的已做题目
             self.profile_mgr.user_profiles[user_id]["done_questions"].add(qid)
 
-            # 2) 也许你要写tag_weights 或 embedding, 这里不多做, 取决于业务
-
-            # 3) 收集( user_id, qid, rating ) 用于协同过滤
-            #    你可以存储(views, timestamp) 如果有需要
+            # 收集 (user_id, question_id, rating) 作为协同过滤交互数据
             new_interactions.append((user_id, qid, rating))
             total += 1
 
-        # 将 old_data + new_interactions => refit cf model (示例)
+        # 合并旧的交互数据，并 refit CF 模型（示例逻辑）
         old_data = []
         for uid, items_map in self.cf_model.user_items.items():
             for item_id, r in items_map.items():
@@ -87,11 +97,11 @@ class RecommenderServicer(recommendation_pb2_grpc.RecommenderServicer):
 
     def Recommend(self, request, context):
         """
-        gRPC方法: Recommend(RecommendRequest) -> RecommendResponse
+        gRPC 方法: Recommend(RecommendRequest) -> RecommendResponse
+        返回推荐结果
         """
         user_id = request.user_base.user_id
         if user_id not in self.profile_mgr.user_profiles:
-            # 如果用户画像不存在, 创建一个简单的
             self.profile_mgr.user_profiles[user_id] = {
                 "items": [],
                 "embedding": np.array([], dtype=np.float32),
@@ -99,21 +109,14 @@ class RecommenderServicer(recommendation_pb2_grpc.RecommenderServicer):
                 "done_questions": set(),
                 "recently_recommended": set()
             }
-
-        # question_id, rating, views, top_n
+        # 获取请求参数
         qid = request.question_id
         rating_val = request.rating
         views_val = request.views
         top_n = request.top_n if request.top_n > 0 else 5
 
-        # 这里可将 (user_id, qid, rating_val) 视为新的行为(若需要)
-        # 也可不立即更新 CF, 以免太频繁
-        # self.cf_model.fit(...)
-
-        # 调用 recommend
         rec_list = self.recommender_service.recommend(user_id, top_n=top_n)
 
-        # 组装 RecommendResponse
         resp = recommendation_pb2.RecommendResponse()
         for rec_qid in rec_list:
             qinfo = self.recommender_service.question_db.get(rec_qid, {})

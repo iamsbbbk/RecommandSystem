@@ -1,4 +1,4 @@
-# models/collaborative_filter.py
+# recommendation_system/collaborative_filter.py
 
 import math
 from collections import defaultdict

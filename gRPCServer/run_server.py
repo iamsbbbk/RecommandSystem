@@ -1,9 +1,12 @@
-# run_server.py
+# gRPCServer/run_server.py
 
 import grpc
 from concurrent import futures
 import recommendation_pb2_grpc
 from recommendation_service import RecommenderServicer
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

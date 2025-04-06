@@ -1,4 +1,4 @@
-# models/simulate_online_recommendation.py
+# recommendation_system/simulate_online_recommendation.py
 
 import random
 import numpy as np

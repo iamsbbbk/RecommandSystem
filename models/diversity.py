@@ -1,4 +1,4 @@
-# models/diversity.py
+# recommendation_system/diversity.py
 
 import math
 

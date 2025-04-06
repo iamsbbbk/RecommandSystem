@@ -1,4 +1,4 @@
-# models/main.py
+# recommendation_system/main.py
 
 import os
 import sys

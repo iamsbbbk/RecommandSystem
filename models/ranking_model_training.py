@@ -1,4 +1,4 @@
-# models/ranking_model_training.py
+# recommendation_system/ranking_model_training.py
 
 import os
 import xgboost as xgb

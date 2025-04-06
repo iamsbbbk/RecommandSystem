@@ -1,4 +1,4 @@
-# models/offline_analysis.py
+# recommendation_system/offline_analysis.py
 
 import math
 import os
